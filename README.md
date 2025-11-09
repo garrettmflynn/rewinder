@@ -91,15 +91,20 @@ npm run dev
 
 - Arduino Mega 2560
 - TMC2209 stepper driver module
-- Stepper motor
-- Power supply (12-24V typically)
+- Stepper motor (NEMA 17 recommended)
+- Power supply (12-24V DC, 2A+)
+- Jumper wires
 
-### Multi-Motor Setup (2-4 Motors)
+**📋 [Complete Wiring Instructions →](docs/WIRING.md)**
+
+### Multi-Motor Setup (2-3 Motors)
 
 - Arduino Mega 2560 (multiple hardware UARTs required)
-- 2-4× TMC2209 stepper driver modules
-- 2-4× Stepper motors
-- Adequate power supply for all motors
+- 2-3× TMC2209 stepper driver modules
+- 2-3× Stepper motors
+- Power supply (24V 5A recommended)
+
+**Note:** Arduino Mega 2560 supports max 3 motors (Serial1-3). See [wiring guide](docs/WIRING.md) for details.
 
 ### Software Requirements
 
@@ -110,6 +115,7 @@ npm run dev
 
 ## Documentation
 
+- **[Wiring Guide](docs/WIRING.md)** - Complete hardware wiring instructions ⚡
 - **[Protocol Specification](docs/PROTOCOL.md)** - Complete command reference
 - **[Firmware Guide](firmware/motor-controller/README.md)** - Arduino setup and usage
 - **[Web UI Guide](web-ui/README.md)** - Web interface documentation
@@ -341,7 +347,7 @@ MIT License - see LICENSE file for details
 
 ## Support
 
-- **Issues:** [GitHub Issues](https://github.com/yourusername/rewinder/issues)
+- **Issues:** [GitHub Issues](https://github.com/garrettmflynn/rewinder/issues)
 - **Documentation:** See `docs/` directory
 - **Examples:** See `firmware/examples/`
 

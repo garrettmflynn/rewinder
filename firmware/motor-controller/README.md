@@ -15,7 +15,11 @@ Arduino firmware for controlling up to 4 TMC2209 stepper motor drivers via Web S
 
 - Arduino Mega 2560 (or compatible with multiple hardware serial ports)
 - TMC2209 stepper driver module(s)
-- TMC2209 library (install via Arduino Library Manager)
+- Stepper motor(s) (NEMA 17 recommended)
+- Power supply (12-24V DC, 2A+ per motor)
+- TMCStepper library (install via Arduino Library Manager)
+
+**📋 Complete wiring instructions: [WIRING.md](../../docs/WIRING.md)**
 
 ## Pin Configuration
 
@@ -227,6 +231,7 @@ else if (cmd.startsWith("MYCOMMAND")) {
 
 ## See Also
 
+- [Wiring Guide](../../docs/WIRING.md) - **Start here for hardware setup!**
 - [Protocol Documentation](../../docs/PROTOCOL.md)
 - [Web UI Documentation](../../web-ui/README.md)
 - [TMCStepper Library](https://github.com/teemuatlut/TMCStepper)

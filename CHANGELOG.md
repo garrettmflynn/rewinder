@@ -17,6 +17,7 @@
   - Web UI prepared for multi-motor control
 
 - **Comprehensive Documentation**
+  - Complete wiring guide with pinouts and diagrams (docs/WIRING.md)
   - Complete protocol specification (docs/PROTOCOL.md)
   - Firmware guide with setup instructions
   - Web UI documentation

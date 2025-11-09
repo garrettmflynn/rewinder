@@ -2,7 +2,9 @@
  * motor-controller.ino
  *
  * Multi-motor TMC2209 controller with Web Serial support
- * Supports 1-4 motors with scalable architecture
+ * Supports 1-3 motors with scalable architecture (Arduino Mega has Serial1-3)
+ *
+ * WIRING: See docs/WIRING.md for complete hardware setup instructions
  *
  * Commands support motor addressing:
  *   M0 ENABLE 1       - Address motor 0
@@ -15,7 +17,8 @@
 
 // ==================== CONFIGURATION ====================
 
-// Number of motors to initialize (1-4)
+// Number of motors to initialize (1-3)
+// Arduino Mega has Serial1, Serial2, Serial3 (max 3 motors)
 #define NUM_MOTORS 1
 
 // Motor 0 pins (required)
