@@ -1,0 +1,23 @@
+.claude
+.DS_Store
+
+# Node modules
+node_modules/
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Web UI specific
+web-ui/dist/
+web-ui/node_modules/
