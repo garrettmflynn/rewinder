@@ -141,6 +141,8 @@ export class SerialService {
       ? command
       : `M${targetMotor} ${command}`;
 
+    console.log(`Sending command to motor ${targetMotor}:`, commandWithMotor);
+
     const encoder = new TextEncoder();
     await this.writer.write(encoder.encode(commandWithMotor.trim() + '\n'));
   }

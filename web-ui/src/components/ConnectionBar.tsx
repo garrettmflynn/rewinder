@@ -46,6 +46,7 @@ export function ConnectionBar() {
   const handleMotorChange = (motorId: number) => {
     setActiveMotor(motorId);
     serialService.setActiveMotor(motorId);
+    console.log(`Active motor changed to: ${motorId}`);
   };
 
   return (
@@ -81,19 +82,17 @@ export function ConnectionBar() {
         </span>
       </div>
 
-      {/* Motor Selector - Hidden for now, ready for multi-motor support */}
-      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 opacity-50" title="Multi-motor support coming soon">
+      {/* Motor Selector - Select which motor to control */}
+      <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2" title="Select active motor">
         <span className="text-white font-medium">Motor:</span>
         <select
           value={activeMotor}
           onChange={(e) => handleMotorChange(+e.target.value)}
           disabled={!connected}
-          className="bg-white/20 text-white px-3 py-1 rounded border border-white/30 disabled:opacity-50"
+          className="bg-white/20 text-white px-3 py-1 rounded border border-white/30"
         >
           <option value={0}>Motor 0</option>
-          <option value={1} disabled>Motor 1 (Future)</option>
-          <option value={2} disabled>Motor 2 (Future)</option>
-          <option value={3} disabled>Motor 3 (Future)</option>
+          <option value={1}>Motor 1</option>
         </select>
       </div>
     </div>
