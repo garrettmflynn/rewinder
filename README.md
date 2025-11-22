@@ -1,5 +1,4 @@
 # Rewinder - Multi-Motor TMC2209 Controller
-
 Professional stepper motor control system with modern web interface and modular Arduino firmware.
 
 ## Overview
@@ -11,6 +10,10 @@ Rewinder is a comprehensive solution for controlling TMC2209 stepper motor drive
 - **Web Serial Interface** - Direct USB communication from browser (no server required)
 - **Modern Web UI** - Built with React, TypeScript, and Tailwind CSS
 - **Backward Compatible** - Works with existing single-motor setups
+
+## Contributors
+- [Alison Kennedy](https://github.com/alisonikennedy): Project Lead
+- [Garrett Flynn](https://github.com/garrettmflynn): Software Developer
 
 ## Project Structure
 
