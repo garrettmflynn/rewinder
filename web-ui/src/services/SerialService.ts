@@ -3,23 +3,40 @@ export class SerialService {
   private reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
   private connected = false;
-  private onMessageCallback: ((message: string) => void) | null = null;
-  private onStatusChangeCallback: ((connected: boolean) => void) | null = null;
-  private onAutoReconnectCallback: ((status: string) => void) | null = null;
+  private onMessageCallbacks: Set<(message: string) => void> = new Set();
+  private onStatusChangeCallbacks: Set<(connected: boolean) => void> = new Set();
+  private onAutoReconnectCallbacks: Set<(status: string) => void> = new Set();
 
   // Motor configuration
   private activeMotorId = 0;  // Default to motor 0 for backward compatibility
 
-  onMessage(callback: (message: string) => void) {
-    this.onMessageCallback = callback;
+  onMessage(callback: (message: string) => void): () => void {
+    this.onMessageCallbacks.add(callback);
+    return () => this.onMessageCallbacks.delete(callback);
   }
 
-  onStatusChange(callback: (connected: boolean) => void) {
-    this.onStatusChangeCallback = callback;
+  onStatusChange(callback: (connected: boolean) => void): () => void {
+    this.onStatusChangeCallbacks.add(callback);
+    // Immediately call with current status
+    callback(this.connected);
+    return () => this.onStatusChangeCallbacks.delete(callback);
   }
 
-  onAutoReconnectStatus(callback: (status: string) => void) {
-    this.onAutoReconnectCallback = callback;
+  onAutoReconnectStatus(callback: (status: string) => void): () => void {
+    this.onAutoReconnectCallbacks.add(callback);
+    return () => this.onAutoReconnectCallbacks.delete(callback);
+  }
+
+  private notifyStatusChange(status: boolean) {
+    this.onStatusChangeCallbacks.forEach(cb => cb(status));
+  }
+
+  private notifyAutoReconnect(status: string) {
+    this.onAutoReconnectCallbacks.forEach(cb => cb(status));
+  }
+
+  private notifyMessage(message: string) {
+    this.onMessageCallbacks.forEach(cb => cb(message));
   }
 
   setActiveMotor(motorId: number) {
@@ -42,25 +59,25 @@ export class SerialService {
   async autoReconnect(): Promise<boolean> {
     try {
       if (!navigator.serial) {
-        this.onAutoReconnectCallback?.('Web Serial API not supported');
+        this.notifyAutoReconnect('Web Serial API not supported');
         return false;
       }
 
-      this.onAutoReconnectCallback?.('Checking for previous devices...');
+      this.notifyAutoReconnect('Checking for previous devices...');
       const ports = await navigator.serial.getPorts();
 
       if (ports.length === 0) {
-        this.onAutoReconnectCallback?.('No previous devices found');
+        this.notifyAutoReconnect('No previous devices found');
         return false;
       }
 
-      this.onAutoReconnectCallback?.('Found previous device, reconnecting...');
+      this.notifyAutoReconnect('Found previous device, reconnecting...');
       this.port = ports[0]; // Use the first previously authorized port
       await this.openPort();
-      this.onAutoReconnectCallback?.('Auto-reconnected successfully');
+      this.notifyAutoReconnect('Auto-reconnected successfully');
       return true;
     } catch (error) {
-      this.onAutoReconnectCallback?.(`Auto-reconnect failed: ${error}`);
+      this.notifyAutoReconnect(`Auto-reconnect failed: ${error}`);
       console.error('Auto-reconnect error:', error);
       return false;
     }
@@ -75,7 +92,7 @@ export class SerialService {
     this.writer = this.port.writable.getWriter();
     this.reader = this.port.readable.getReader();
     this.connected = true;
-    this.onStatusChangeCallback?.(true);
+    this.notifyStatusChange(true);
     this.readLoop();
   }
 
@@ -92,7 +109,7 @@ export class SerialService {
       if (this.port) {
         await this.port.close();
       }
-      this.onStatusChangeCallback?.(false);
+      this.notifyStatusChange(false);
     } catch (error) {
       throw new Error(`Disconnection failed: ${error}`);
     }
@@ -114,7 +131,7 @@ export class SerialService {
             const line = buffer.slice(0, newlineIndex).trim();
             buffer = buffer.slice(newlineIndex + 1);
             if (line) {
-              this.onMessageCallback?.(line);
+              this.notifyMessage(line);
             }
           }
         }
