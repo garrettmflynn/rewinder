@@ -10,9 +10,9 @@ interface Settings {
 }
 
 const defaultSettings: Settings = {
-  spoolSpeed: 500,
+  spoolSpeed: 700,
   guideSpeed: 300,
-  guideTravel: 1000,
+  guideTravel: 7500,
 };
 
 function loadSettings(): Settings {
@@ -76,16 +76,16 @@ export function MainInterface() {
   };
 
   const startOscillation = () => {
-    const oscillate = async () => {
+    const oscillate = () => {
       if (!isRunningRef.current) return;
 
       const speed = guideSpeedRef.current;
       const travel = guideTravelRef.current;
 
-      // Set speed, direction, and move
-      await sendToMotor(1, `SPEED ${speed}`);
-      await sendToMotor(1, `DIR ${directionRef.current}`);
-      await sendToMotor(1, `MOVE ${travel} ${speed}`);
+      // Set speed, direction, and move (fire and forget)
+      sendToMotor(1, `SPEED ${speed}`);
+      sendToMotor(1, `DIR ${directionRef.current}`);
+      sendToMotor(1, `MOVE ${travel} ${speed}`);
 
       // Toggle direction for next cycle
       directionRef.current = directionRef.current === 'FWD' ? 'REV' : 'FWD';
@@ -101,18 +101,19 @@ export function MainInterface() {
     oscillate();
   };
 
-  const handleStart = async () => {
+  const handleStart = () => {
     if (!connected) return;
 
     isRunningRef.current = true;
     setIsRunning(true);
 
-    // Enable both motors
-    await sendToMotor(0, 'ENABLE 1');
-    await sendToMotor(1, 'ENABLE 1');
+    // Enable both motors and start them (fire and forget)
+    sendToMotor(0, 'ENABLE 1');
+    sendToMotor(1, 'ENABLE 1');
 
-    // Start spool motor (Motor 0) - continuous rotation
-    await sendToMotor(0, `CONT ${spoolSpeed}`);
+    // Start spool motor (Motor 0) - continuous rotation (reverse direction)
+    sendToMotor(0, 'DIR REV');
+    sendToMotor(0, `CONT ${spoolSpeed}`);
 
     // Start guide oscillation (Motor 1)
     directionRef.current = 'FWD';
@@ -128,12 +129,12 @@ export function MainInterface() {
     setIsRunning(false);
   };
 
-  const handleStop = async () => {
+  const handleStop = () => {
     stopAll();
 
-    // Stop both motors
-    await sendToMotor(0, 'STOP');
-    await sendToMotor(1, 'STOP');
+    // Stop both motors (fire and forget)
+    sendToMotor(0, 'STOP');
+    sendToMotor(1, 'STOP');
   };
 
   const handleToggle = () => {
@@ -144,42 +145,42 @@ export function MainInterface() {
     }
   };
 
-  const handleReset = async () => {
+  const handleReset = () => {
     if (!connected || isRunning) return;
 
     if (isResetting) {
       // Stop reset in progress
-      await stopReset();
+      stopReset();
       return;
     }
 
     setIsResetting(true);
 
-    // Enable guide motor
-    await sendToMotor(1, 'ENABLE 1');
+    // Enable guide motor and move (fire and forget)
+    sendToMotor(1, 'ENABLE 1');
 
     // Move in REV direction (opposite of normal start which is FWD)
     // Using CONT for continuous movement until stopped (manually or by limit switch)
     // Fixed slow speed for safe homing
     const RESET_SPEED = 600;
-    await sendToMotor(1, 'DIR REV');
-    await sendToMotor(1, `CONT ${RESET_SPEED}`);
+    sendToMotor(1, 'DIR REV');
+    sendToMotor(1, `CONT ${RESET_SPEED}`);
 
     // TODO: When limit switch is added, listen for HOME signal from Arduino
     // to automatically call stopReset()
   };
 
-  const stopReset = async () => {
-    await sendToMotor(1, 'STOP');
+  const stopReset = () => {
+    sendToMotor(1, 'STOP');
     setIsResetting(false);
   };
 
 
-  const updateSpoolSpeed = async (newSpeed: number) => {
+  const updateSpoolSpeed = (newSpeed: number) => {
     setSpoolSpeed(newSpeed);
     saveSettings({ spoolSpeed: newSpeed, guideSpeed, guideTravel });
     if (isRunning) {
-      await sendToMotor(0, `CONT ${newSpeed}`);
+      sendToMotor(0, `CONT ${newSpeed}`);
     }
   };
 
