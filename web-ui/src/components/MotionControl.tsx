@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { serialService } from '../services/SerialService';
+import { connectionService } from '../services/ConnectionService';
 
 export function MotionControl() {
   const [speed, setSpeed] = useState(500);
@@ -10,23 +10,9 @@ export function MotionControl() {
 
   const send = async (command: string) => {
     try {
-      await serialService.send(command);
+      await connectionService.send(command);
     } catch (error) {
       console.error('Send error:', error);
-    }
-  };
-
-  const sendAll = async (command: string) => {
-    try {
-      // Send command with ALL prefix for synchronized control
-      const encoder = new TextEncoder();
-      const writer = (serialService as any).writer;
-      if (writer) {
-        await writer.write(encoder.encode(`ALL ${command}\n`));
-        console.log(`Sending to ALL motors: ALL ${command}`);
-      }
-    } catch (error) {
-      console.error('Send all error:', error);
     }
   };
 
@@ -188,69 +174,6 @@ export function MotionControl() {
         >
           STATUS
         </button>
-      </div>
-
-      {/* Synchronized Multi-Motor Control */}
-      <div className="mt-6 pt-6 border-t-2 border-gray-200">
-        <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
-          <span className="text-xl">🔄</span>
-          Synchronized Multi-Motor Test
-        </h3>
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4">
-          <p className="text-sm text-gray-600 mb-3">
-            Control all motors simultaneously with the ALL command prefix
-          </p>
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={() => sendAll('ENABLE 1')}
-              className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              Enable All
-            </button>
-            <button
-              onClick={() => sendAll('ENABLE 0')}
-              className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              Disable All
-            </button>
-            <button
-              onClick={() => sendAll(`SPEED ${speed}`)}
-              className="px-4 py-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              Set All Speed ({speed})
-            </button>
-            <button
-              onClick={() => sendAll(`MOVE ${moveSteps} ${speed}`)}
-              className="px-4 py-2 bg-pink-500 hover:bg-pink-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              Sync Move All ({moveSteps} steps)
-            </button>
-            <button
-              onClick={() => sendAll('DIR FWD')}
-              className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              All FWD →
-            </button>
-            <button
-              onClick={() => sendAll('DIR REV')}
-              className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              All ← REV
-            </button>
-            <button
-              onClick={() => sendAll('STOP')}
-              className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              Stop All
-            </button>
-            <button
-              onClick={() => sendAll('STATUS')}
-              className="px-4 py-2 bg-cyan-500 hover:bg-cyan-600 text-white rounded-lg font-medium transition-colors shadow-md"
-            >
-              Status All
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

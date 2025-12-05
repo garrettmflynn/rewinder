@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { serialService } from '../services/SerialService';
+import { connectionService } from '../services/ConnectionService';
 
 export function ConnectionStatus() {
   const [connected, setConnected] = useState(false);
@@ -7,21 +7,21 @@ export function ConnectionStatus() {
   const [isReconnecting, setIsReconnecting] = useState(false);
 
   useEffect(() => {
-    const unsubStatus = serialService.onStatusChange((status) => {
+    const unsubStatus = connectionService.onStatusChange((status) => {
       setConnected(status);
       if (status) {
         setIsReconnecting(false);
       }
     });
 
-    const unsubAutoReconnect = serialService.onAutoReconnectStatus((status) => {
+    const unsubAutoReconnect = connectionService.onAutoReconnectStatus((status) => {
       setAutoReconnectStatus(status);
     });
 
     // Attempt auto-reconnect on mount
     const attemptAutoReconnect = async () => {
       setIsReconnecting(true);
-      const success = await serialService.autoReconnect();
+      const success = await connectionService.autoReconnect();
       if (!success) {
         setIsReconnecting(false);
       }
@@ -38,9 +38,9 @@ export function ConnectionStatus() {
   const handleConnect = async () => {
     try {
       if (connected) {
-        await serialService.disconnect();
+        await connectionService.disconnect();
       } else {
-        await serialService.connect();
+        await connectionService.connect();
       }
     } catch (error) {
       console.error('Connection error:', error);

@@ -4,6 +4,7 @@ export class SerialService {
   private writer: WritableStreamDefaultWriter<Uint8Array> | null = null;
   private connected = false;
   private onMessageCallbacks: Set<(message: string) => void> = new Set();
+  private onSentCallbacks: Set<(command: string) => void> = new Set();
   private onStatusChangeCallbacks: Set<(connected: boolean) => void> = new Set();
   private onAutoReconnectCallbacks: Set<(status: string) => void> = new Set();
 
@@ -13,6 +14,11 @@ export class SerialService {
   onMessage(callback: (message: string) => void): () => void {
     this.onMessageCallbacks.add(callback);
     return () => this.onMessageCallbacks.delete(callback);
+  }
+
+  onSent(callback: (command: string) => void): () => void {
+    this.onSentCallbacks.add(callback);
+    return () => this.onSentCallbacks.delete(callback);
   }
 
   onStatusChange(callback: (connected: boolean) => void): () => void {
@@ -37,6 +43,10 @@ export class SerialService {
 
   private notifyMessage(message: string) {
     this.onMessageCallbacks.forEach(cb => cb(message));
+  }
+
+  private notifySent(command: string) {
+    this.onSentCallbacks.forEach(cb => cb(command));
   }
 
   setActiveMotor(motorId: number) {
@@ -158,10 +168,11 @@ export class SerialService {
       ? command
       : `M${targetMotor} ${command}`;
 
-    console.log(`Sending command to motor ${targetMotor}:`, commandWithMotor);
-
     const encoder = new TextEncoder();
     await this.writer.write(encoder.encode(commandWithMotor.trim() + '\n'));
+
+    // Notify listeners about sent command
+    this.notifySent(commandWithMotor.trim());
   }
 
   isConnected(): boolean {

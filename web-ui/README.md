@@ -306,6 +306,26 @@ export interface MotorStatus {
 - Tailwind CSS purges unused styles
 - Serial communication is non-blocking
 
+## Optional Improvements
+
+### Message ID for Command-Response Correlation
+
+The console pairs commands with responses by matching command type and motor number from the ack (`{"ack":"COMMAND","motor":N}`). This works well for sequential single-client usage.
+
+For more robust tracking, consider adding message IDs to the firmware:
+
+```
+# Web UI sends:
+ENABLE 1 #42
+
+# Firmware responds:
+{"ack":"ENABLE","motor":0,"id":42}
+```
+
+**When useful:** Out-of-order responses, multiple clients, reconnection correlation.
+
+**Current approach is sufficient for:** Single client, sequential commands.
+
 ## See Also
 
 - [Protocol Documentation](../docs/PROTOCOL.md)

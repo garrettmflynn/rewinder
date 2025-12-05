@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { serialService } from '../services/SerialService';
+import { connectionService } from '../services/ConnectionService';
 
 const STORAGE_KEY = 'rewinder-settings';
 
@@ -52,7 +52,7 @@ export function MainInterface() {
   const guideTravelRef = useRef(initialSettings.guideTravel);
 
   useEffect(() => {
-    const unsubStatus = serialService.onStatusChange((status) => {
+    const unsubStatus = connectionService.onStatusChange((status) => {
       setConnected(status);
       if (!status) {
         stopAll();
@@ -69,7 +69,7 @@ export function MainInterface() {
 
   const sendToMotor = async (motorId: number, command: string) => {
     try {
-      await serialService.send(command, motorId);
+      await connectionService.send(command, motorId);
     } catch (error) {
       console.error('Send error:', error);
     }
@@ -174,12 +174,6 @@ export function MainInterface() {
     setIsResetting(false);
   };
 
-  // Expose for future use when limit switch is added
-  // Call this when limit switch triggers
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _onHomeLimitReached = () => {
-    stopReset();
-  };
 
   const updateSpoolSpeed = async (newSpeed: number) => {
     setSpoolSpeed(newSpeed);
