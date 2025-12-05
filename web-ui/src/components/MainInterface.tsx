@@ -39,14 +39,17 @@ export function MainInterface() {
   const initialSettings = loadSettings();
 
   const [isRunning, setIsRunning] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [spoolSpeed, setSpoolSpeed] = useState(initialSettings.spoolSpeed);
   const [guideSpeed, setGuideSpeed] = useState(initialSettings.guideSpeed);
   const [guideTravel, setGuideTravel] = useState(initialSettings.guideTravel);
 
-  const oscillationRef = useRef<NodeJS.Timeout | null>(null);
+  const oscillationRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const directionRef = useRef<'FWD' | 'REV'>('FWD');
   const isRunningRef = useRef(false);
+  const guideSpeedRef = useRef(initialSettings.guideSpeed);
+  const guideTravelRef = useRef(initialSettings.guideTravel);
 
   useEffect(() => {
     const unsubStatus = serialService.onStatusChange((status) => {
@@ -72,11 +75,15 @@ export function MainInterface() {
     }
   };
 
-  const startOscillation = (speed: number, travel: number) => {
+  const startOscillation = () => {
     const oscillate = async () => {
       if (!isRunningRef.current) return;
 
-      // Set direction and move
+      const speed = guideSpeedRef.current;
+      const travel = guideTravelRef.current;
+
+      // Set speed, direction, and move
+      await sendToMotor(1, `SPEED ${speed}`);
       await sendToMotor(1, `DIR ${directionRef.current}`);
       await sendToMotor(1, `MOVE ${travel} ${speed}`);
 
@@ -109,7 +116,7 @@ export function MainInterface() {
 
     // Start guide oscillation (Motor 1)
     directionRef.current = 'FWD';
-    startOscillation(guideSpeed, guideTravel);
+    startOscillation();
   };
 
   const stopAll = () => {
@@ -137,6 +144,43 @@ export function MainInterface() {
     }
   };
 
+  const handleReset = async () => {
+    if (!connected || isRunning) return;
+
+    if (isResetting) {
+      // Stop reset in progress
+      await stopReset();
+      return;
+    }
+
+    setIsResetting(true);
+
+    // Enable guide motor
+    await sendToMotor(1, 'ENABLE 1');
+
+    // Move in REV direction (opposite of normal start which is FWD)
+    // Using CONT for continuous movement until stopped (manually or by limit switch)
+    // Fixed slow speed for safe homing
+    const RESET_SPEED = 600;
+    await sendToMotor(1, 'DIR REV');
+    await sendToMotor(1, `CONT ${RESET_SPEED}`);
+
+    // TODO: When limit switch is added, listen for HOME signal from Arduino
+    // to automatically call stopReset()
+  };
+
+  const stopReset = async () => {
+    await sendToMotor(1, 'STOP');
+    setIsResetting(false);
+  };
+
+  // Expose for future use when limit switch is added
+  // Call this when limit switch triggers
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _onHomeLimitReached = () => {
+    stopReset();
+  };
+
   const updateSpoolSpeed = async (newSpeed: number) => {
     setSpoolSpeed(newSpeed);
     saveSettings({ spoolSpeed: newSpeed, guideSpeed, guideTravel });
@@ -147,14 +191,14 @@ export function MainInterface() {
 
   const updateGuideSpeed = (newSpeed: number) => {
     setGuideSpeed(newSpeed);
+    guideSpeedRef.current = newSpeed;
     saveSettings({ spoolSpeed, guideSpeed: newSpeed, guideTravel });
-    // Speed will be applied on next oscillation cycle
   };
 
   const updateGuideTravel = (newTravel: number) => {
     setGuideTravel(newTravel);
+    guideTravelRef.current = newTravel;
     saveSettings({ spoolSpeed, guideSpeed, guideTravel: newTravel });
-    // Travel will be applied on next oscillation cycle
   };
 
   return (
@@ -168,11 +212,11 @@ export function MainInterface() {
         </div>
       )}
 
-      {/* Start/Stop Button */}
-      <div className="flex items-center gap-4">
+      {/* Controls */}
+      <div className="flex items-center gap-3">
         <button
           onClick={handleToggle}
-          disabled={!connected}
+          disabled={!connected || isResetting}
           className={`px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
             isRunning
               ? 'bg-red-500 hover:bg-red-600 text-white'
@@ -181,9 +225,22 @@ export function MainInterface() {
         >
           {isRunning ? 'Stop' : 'Start'}
         </button>
+        <button
+          onClick={handleReset}
+          disabled={!connected || isRunning}
+          className={`px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
+            isResetting
+              ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+              : 'bg-orange-500 hover:bg-orange-600 text-white'
+          }`}
+        >
+          {isResetting ? 'Stop Reset' : 'Reset Guide'}
+        </button>
         <span className="text-white/70 text-sm">
           {!connected
             ? 'Connect to device first'
+            : isResetting
+            ? 'Moving guide to home...'
             : isRunning
             ? 'Winding in progress...'
             : 'Ready to wind'}
@@ -225,7 +282,7 @@ export function MainInterface() {
               onChange={(e) => updateSpoolSpeed(Number(e.target.value))}
               disabled={!connected}
               min="100"
-              max="5000"
+              max="10000"
               className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-center font-mono disabled:opacity-50"
             />
           </div>
@@ -266,7 +323,7 @@ export function MainInterface() {
               <input
                 type="range"
                 min="100"
-                max="5000"
+                max="10000"
                 step="100"
                 value={guideTravel}
                 onChange={(e) => updateGuideTravel(Number(e.target.value))}
