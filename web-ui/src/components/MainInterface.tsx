@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { connectionService } from '../services/ConnectionService';
 
 const STORAGE_KEY = 'rewinder-settings';
+const RESET_SPEED = 400;
 
 interface Settings {
   spoolSpeed: number;
@@ -162,7 +163,6 @@ export function MainInterface() {
     // Move in REV direction (opposite of normal start which is FWD)
     // Using CONT for continuous movement until stopped (manually or by limit switch)
     // Fixed slow speed for safe homing
-    const RESET_SPEED = 600;
     sendToMotor(1, 'DIR REV');
     sendToMotor(1, `CONT ${RESET_SPEED}`);
 
