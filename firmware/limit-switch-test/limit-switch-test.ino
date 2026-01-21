@@ -3,14 +3,14 @@
  *
  * Simple test to verify limit switch wiring.
  * Wiring:
- *   - Pin 20 (SDA) -> NO terminal
+ *   - Pin 22 -> NO terminal
  *   - GND -> C (Common) terminal
  *
  * Open Serial Monitor at 115200 baud.
  * Press the switch and watch for state changes.
  */
 
-#define LIMIT_SWITCH_PIN 20
+#define LIMIT_SWITCH_PIN 22
 
 bool lastState = HIGH;
 
