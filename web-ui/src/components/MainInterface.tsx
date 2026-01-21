@@ -42,6 +42,7 @@ export function MainInterface() {
   const [isRunning, setIsRunning] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [limitSwitchPressed, setLimitSwitchPressed] = useState(false);
   const [spoolSpeed, setSpoolSpeed] = useState(initialSettings.spoolSpeed);
   const [guideSpeed, setGuideSpeed] = useState(initialSettings.guideSpeed);
   const [guideTravel, setGuideTravel] = useState(initialSettings.guideTravel);
@@ -57,11 +58,30 @@ export function MainInterface() {
       setConnected(status);
       if (!status) {
         stopAll();
+        setLimitSwitchPressed(false);
+      }
+    });
+
+    // Listen for messages from Arduino
+    const unsubMessage = connectionService.onMessage((message) => {
+      try {
+        const data = JSON.parse(message);
+        // Handle HOME event (limit switch triggered during movement)
+        if (data.event === 'HOME' && data.motor === 1) {
+          setIsResetting(false);
+        }
+        // Handle limit switch state updates (for LED indicator)
+        if (typeof data.limitSwitch === 'boolean') {
+          setLimitSwitchPressed(data.limitSwitch);
+        }
+      } catch {
+        // Not JSON, ignore
       }
     });
 
     return () => {
       unsubStatus();
+      unsubMessage();
       if (oscillationRef.current) {
         clearTimeout(oscillationRef.current);
       }
@@ -166,8 +186,8 @@ export function MainInterface() {
     sendToMotor(1, 'DIR REV');
     sendToMotor(1, `CONT ${RESET_SPEED}`);
 
-    // TODO: When limit switch is added, listen for HOME signal from Arduino
-    // to automatically call stopReset()
+    // Note: Limit switch HOME signal is handled in useEffect message listener
+    // which will automatically call setIsResetting(false) when triggered
   };
 
   const stopReset = () => {
@@ -231,7 +251,22 @@ export function MainInterface() {
         >
           {isResetting ? 'Stop Reset' : 'Reset Guide'}
         </button>
-        <span className="text-white/70 text-sm">
+
+        {/* Limit Switch Indicator */}
+        <div className="flex items-center gap-2 ml-2">
+          <div
+            className={`w-3 h-3 rounded-full transition-all ${
+              limitSwitchPressed
+                ? 'bg-green-400 shadow-[0_0_8px_2px_rgba(74,222,128,0.6)]'
+                : 'bg-white/20'
+            }`}
+          />
+          <span className="text-white/50 text-xs">
+            {limitSwitchPressed ? 'Home' : 'Limit'}
+          </span>
+        </div>
+
+        <span className="text-white/70 text-sm ml-auto">
           {!connected
             ? 'Connect to device first'
             : isResetting

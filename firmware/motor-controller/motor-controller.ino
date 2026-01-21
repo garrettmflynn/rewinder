@@ -24,14 +24,29 @@
 #define TMC_BAUD     115200
 #define R_SENSE      0.11f
 
+// Limit switch for guide motor (Motor 1) home position
+// Use interrupt-capable pin - pin 20 (SDA) on Mega
+// (Pins 2,3 used for STEP, pins 18,19 used for Serial1)
+#define LIMIT_SWITCH_PIN  20
+#define LIMIT_SWITCH_MOTOR 1
+
 // ==================== GLOBAL STATE ====================
 MotorDriver* motors[4] = {nullptr, nullptr, nullptr, nullptr};
 String inputBuffer;
+
+// Limit switch state
+volatile bool limitSwitchTriggered = false;
+bool lastLimitSwitchState = HIGH;  // Track state for UI feedback
 
 // ==== FORWARD DECLARATIONS (needed before loop uses them) ====
 void handleCommand(String line);
 void executeCommand(MotorDriver* motor, String cmd);
 void executeCommandForAll(String cmd);
+
+// Limit switch interrupt handler
+void onLimitSwitch() {
+  limitSwitchTriggered = true;
+}
 
 // ==================== INITIALIZATION ====================
 void setup() {
@@ -54,6 +69,18 @@ void setup() {
     Serial.println(F("{\"info\":\"Motor 1 initialized\"}"));
   #endif
 
+  // Configure limit switch with internal pull-up
+  // Switch connects pin to GND when pressed (active LOW)
+  pinMode(LIMIT_SWITCH_PIN, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(LIMIT_SWITCH_PIN), onLimitSwitch, FALLING);
+  Serial.println(F("{\"info\":\"Limit switch configured on pin 20\"}"));
+
+  // Print initial limit switch state for debugging
+  bool initialState = digitalRead(LIMIT_SWITCH_PIN);
+  Serial.print(F("{\"info\":\"Limit switch initial state: "));
+  Serial.print(initialState == LOW ? F("PRESSED") : F("OPEN"));
+  Serial.println(F("\"}"));
+
   Serial.print(F("{\"info\":\"Ready - "));
   Serial.print(NUM_MOTORS);
   Serial.println(F(" motor(s) active\"}"));
@@ -63,6 +90,31 @@ void setup() {
 void loop() {
   for (int i = 0; i < NUM_MOTORS; i++) {
     if (motors[i]) motors[i]->update();
+  }
+
+  // Check limit switch state for UI feedback
+  bool currentLimitState = digitalRead(LIMIT_SWITCH_PIN);
+  if (currentLimitState != lastLimitSwitchState) {
+    lastLimitSwitchState = currentLimitState;
+    // LOW = pressed (active), HIGH = released
+    Serial.print(F("{\"limitSwitch\":"));
+    Serial.print(currentLimitState == LOW ? F("true") : F("false"));
+    Serial.println(F("}"));
+  }
+
+  // Check if limit switch was triggered (interrupt-based for motor stop)
+  if (limitSwitchTriggered) {
+    limitSwitchTriggered = false;
+
+    // Stop the guide motor (Motor 1)
+    if (motors[LIMIT_SWITCH_MOTOR] && motors[LIMIT_SWITCH_MOTOR]->isMoving()) {
+      motors[LIMIT_SWITCH_MOTOR]->stopMotion();
+
+      // Send HOME event to web app
+      Serial.print(F("{\"event\":\"HOME\",\"motor\":"));
+      Serial.print(LIMIT_SWITCH_MOTOR);
+      Serial.println(F("}"));
+    }
   }
 
   while (Serial.available()) {
