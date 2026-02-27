@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { serialService } from '../services/SerialService';
+import { connectionService as serialService } from '../services/ConnectionService';
 
 export function ConnectionBar() {
   const [connected, setConnected] = useState(false);

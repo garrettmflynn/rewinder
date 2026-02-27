@@ -5,6 +5,7 @@ export function ConnectionStatus() {
   const [connected, setConnected] = useState(false);
   const [autoReconnectStatus, setAutoReconnectStatus] = useState<string>('');
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [emulated, setEmulated] = useState((connectionService as any).isEmulated as boolean);
 
   useEffect(() => {
     const unsubStatus = connectionService.onStatusChange((status) => {
@@ -18,8 +19,20 @@ export function ConnectionStatus() {
       setAutoReconnectStatus(status);
     });
 
-    // Attempt auto-reconnect on mount
+    // Check for ?emulate URL flag — auto-enable emulator without a button
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('emulate') && !(connectionService as any).isEmulated) {
+      const proxy = connectionService as any;
+      proxy.setEmulatorMode(true).then(() => {
+        setEmulated(true);
+        connectionService.connect();
+      });
+      return () => { unsubStatus(); unsubAutoReconnect(); };
+    }
+
+    // Attempt auto-reconnect on mount (only for real device)
     const attemptAutoReconnect = async () => {
+      if ((connectionService as any).isEmulated) return;
       setIsReconnecting(true);
       const success = await connectionService.autoReconnect();
       if (!success) {
@@ -55,7 +68,9 @@ export function ConnectionStatus() {
             isReconnecting
               ? 'bg-yellow-400 animate-pulse'
               : connected
-              ? 'bg-green-400'
+              ? emulated
+                ? 'bg-blue-400'
+                : 'bg-green-400'
               : 'bg-gray-400'
           }`}
         />
@@ -63,22 +78,26 @@ export function ConnectionStatus() {
           {isReconnecting
             ? autoReconnectStatus || 'Reconnecting...'
             : connected
-            ? 'Connected'
+            ? emulated
+              ? 'Emulated'
+              : 'Connected'
             : 'Disconnected'}
         </span>
       </div>
 
-      <button
-        onClick={handleConnect}
-        disabled={isReconnecting}
-        className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
-          connected
-            ? 'bg-white/10 hover:bg-white/20 text-white/80'
-            : 'bg-white/20 hover:bg-white/30 text-white'
-        }`}
-      >
-        {isReconnecting ? '...' : connected ? 'Disconnect' : 'Connect'}
-      </button>
+      {!emulated && (
+        <button
+          onClick={handleConnect}
+          disabled={isReconnecting}
+          className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed ${
+            connected
+              ? 'bg-white/10 hover:bg-white/20 text-white/80'
+              : 'bg-white/20 hover:bg-white/30 text-white'
+          }`}
+        >
+          {isReconnecting ? '...' : connected ? 'Disconnect' : 'Connect'}
+        </button>
+      )}
     </div>
   );
 }

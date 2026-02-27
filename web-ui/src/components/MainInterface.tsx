@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { connectionService } from '../services/ConnectionService';
+import { useWindingState } from '../hooks/useWindingState';
+import { WindingStatus } from './WindingStatus';
 
 const STORAGE_KEY = 'rewinder-settings';
-const RESET_SPEED = 400;
 
 interface Settings {
   spoolSpeed: number;
@@ -36,184 +37,58 @@ function saveSettings(settings: Settings) {
   }
 }
 
+function formatSteps(steps: number): string {
+  if (steps >= 1_000_000) return `${(steps / 1_000_000).toFixed(1)}M`;
+  if (steps >= 1_000) return `${(steps / 1_000).toFixed(1)}k`;
+  return `${steps}`;
+}
+
 export function MainInterface() {
   const initialSettings = loadSettings();
 
-  const [isRunning, setIsRunning] = useState(false);
-  const [isResetting, setIsResetting] = useState(false);
   const [connected, setConnected] = useState(false);
-  const [limitSwitchPressed, setLimitSwitchPressed] = useState(false);
   const [spoolSpeed, setSpoolSpeed] = useState(initialSettings.spoolSpeed);
   const [guideSpeed, setGuideSpeed] = useState(initialSettings.guideSpeed);
   const [guideTravel, setGuideTravel] = useState(initialSettings.guideTravel);
 
-  const oscillationRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const directionRef = useRef<'FWD' | 'REV'>('FWD');
-  const isRunningRef = useRef(false);
-  const guideSpeedRef = useRef(initialSettings.guideSpeed);
-  const guideTravelRef = useRef(initialSettings.guideTravel);
+  const { state, actions, estimatedPosition, spoolSteps, showLimitWarning, isPauseInProgress } =
+    useWindingState(spoolSpeed, guideSpeed, guideTravel);
+
+  const { mode } = state;
+  const isRunning = mode === 'running';
+  const isPaused = mode === 'paused';
+  const isResetting = mode === 'resetting';
+  const isIdle = mode === 'idle';
 
   useEffect(() => {
-    const unsubStatus = connectionService.onStatusChange((status) => {
+    const unsub = connectionService.onStatusChange((status) => {
       setConnected(status);
-      if (!status) {
-        stopAll();
-        setLimitSwitchPressed(false);
-      }
     });
-
-    // Listen for messages from Arduino
-    const unsubMessage = connectionService.onMessage((message) => {
-      try {
-        const data = JSON.parse(message);
-        // Handle HOME event (limit switch triggered during movement)
-        if (data.event === 'HOME' && data.motor === 1) {
-          setIsResetting(false);
-        }
-        // Handle limit switch state updates (for LED indicator)
-        if (typeof data.limitSwitch === 'boolean') {
-          setLimitSwitchPressed(data.limitSwitch);
-        }
-      } catch {
-        // Not JSON, ignore
-      }
-    });
-
-    return () => {
-      unsubStatus();
-      unsubMessage();
-      if (oscillationRef.current) {
-        clearTimeout(oscillationRef.current);
-      }
-    };
+    return unsub;
   }, []);
-
-  const sendToMotor = async (motorId: number, command: string) => {
-    try {
-      await connectionService.send(command, motorId);
-    } catch (error) {
-      console.error('Send error:', error);
-    }
-  };
-
-  const startOscillation = () => {
-    const oscillate = () => {
-      if (!isRunningRef.current) return;
-
-      const speed = guideSpeedRef.current;
-      const travel = guideTravelRef.current;
-
-      // Set speed, direction, and move (fire and forget)
-      sendToMotor(1, `SPEED ${speed}`);
-      sendToMotor(1, `DIR ${directionRef.current}`);
-      sendToMotor(1, `MOVE ${travel} ${speed}`);
-
-      // Toggle direction for next cycle
-      directionRef.current = directionRef.current === 'FWD' ? 'REV' : 'FWD';
-
-      // Calculate time for move to complete (with buffer)
-      const moveTime = (travel / speed) * 1000 + 100;
-
-      oscillationRef.current = setTimeout(() => {
-        oscillate();
-      }, moveTime);
-    };
-
-    oscillate();
-  };
-
-  const handleStart = () => {
-    if (!connected) return;
-
-    isRunningRef.current = true;
-    setIsRunning(true);
-
-    // Enable both motors and start them (fire and forget)
-    sendToMotor(0, 'ENABLE 1');
-    sendToMotor(1, 'ENABLE 1');
-
-    // Start spool motor (Motor 0) - continuous rotation (reverse direction)
-    sendToMotor(0, 'DIR REV');
-    sendToMotor(0, `CONT ${spoolSpeed}`);
-
-    // Start guide oscillation (Motor 1)
-    directionRef.current = 'FWD';
-    startOscillation();
-  };
-
-  const stopAll = () => {
-    isRunningRef.current = false;
-    if (oscillationRef.current) {
-      clearTimeout(oscillationRef.current);
-      oscillationRef.current = null;
-    }
-    setIsRunning(false);
-  };
-
-  const handleStop = () => {
-    stopAll();
-
-    // Stop both motors (fire and forget)
-    sendToMotor(0, 'STOP');
-    sendToMotor(1, 'STOP');
-  };
-
-  const handleToggle = () => {
-    if (isRunning) {
-      handleStop();
-    } else {
-      handleStart();
-    }
-  };
-
-  const handleReset = () => {
-    if (!connected || isRunning) return;
-
-    if (isResetting) {
-      // Stop reset in progress
-      stopReset();
-      return;
-    }
-
-    setIsResetting(true);
-
-    // Enable guide motor and move (fire and forget)
-    sendToMotor(1, 'ENABLE 1');
-
-    // Move in REV direction (opposite of normal start which is FWD)
-    // Using CONT for continuous movement until stopped (manually or by limit switch)
-    // Fixed slow speed for safe homing
-    sendToMotor(1, 'DIR REV');
-    sendToMotor(1, `CONT ${RESET_SPEED}`);
-
-    // Note: Limit switch HOME signal is handled in useEffect message listener
-    // which will automatically call setIsResetting(false) when triggered
-  };
-
-  const stopReset = () => {
-    sendToMotor(1, 'STOP');
-    setIsResetting(false);
-  };
-
 
   const updateSpoolSpeed = (newSpeed: number) => {
     setSpoolSpeed(newSpeed);
     saveSettings({ spoolSpeed: newSpeed, guideSpeed, guideTravel });
-    if (isRunning) {
-      sendToMotor(0, `CONT ${newSpeed}`);
-    }
   };
 
   const updateGuideSpeed = (newSpeed: number) => {
     setGuideSpeed(newSpeed);
-    guideSpeedRef.current = newSpeed;
     saveSettings({ spoolSpeed, guideSpeed: newSpeed, guideTravel });
   };
 
   const updateGuideTravel = (newTravel: number) => {
     setGuideTravel(newTravel);
-    guideTravelRef.current = newTravel;
     saveSettings({ spoolSpeed, guideSpeed, guideTravel: newTravel });
+  };
+
+  // --- Emulator controls ---
+  const isEmulated = (connectionService as any).isEmulated;
+  const triggerLimitSwitch = () => {
+    if (isEmulated) {
+      const emulator = (connectionService as any).emulator;
+      emulator.triggerLimitSwitch(!state.limitSwitch.pressed);
+    }
   };
 
   return (
@@ -227,62 +102,166 @@ export function MainInterface() {
         </div>
       )}
 
-      {/* Controls */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={handleToggle}
-          disabled={!connected || isResetting}
-          className={`px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
-            isRunning
-              ? 'bg-red-500 hover:bg-red-600 text-white'
-              : 'bg-green-500 hover:bg-green-600 text-white'
-          }`}
-        >
-          {isRunning ? 'Stop' : 'Start'}
-        </button>
-        <button
-          onClick={handleReset}
-          disabled={!connected || isRunning}
-          className={`px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed ${
-            isResetting
-              ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-              : 'bg-orange-500 hover:bg-orange-600 text-white'
-          }`}
-        >
-          {isResetting ? 'Stop Reset' : 'Reset Guide'}
-        </button>
+      {/* Controls panel */}
+      {connected && (
+        <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-4 shadow-xl space-y-3">
+          {/* Limit Switch Warning Banner */}
+          {showLimitWarning && (
+            <div className="bg-amber-500/15 border border-amber-500/40 rounded-xl p-3">
+              <p className="text-amber-200 text-sm font-medium mb-2">
+                Limit switch state changed while paused. Guide motor position may be unknown.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { actions.dismissLimitWarning(); actions.reset(); }}
+                  className="px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-semibold transition-all"
+                >
+                  Re-Home First
+                </button>
+                <button
+                  onClick={actions.resumeAnyway}
+                  className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white/80 rounded-lg text-xs font-semibold transition-all"
+                >
+                  Resume Anyway
+                </button>
+              </div>
+            </div>
+          )}
 
-        {/* Limit Switch Indicator */}
-        <div className="flex items-center gap-2 ml-2">
-          <div
-            className={`w-3 h-3 rounded-full transition-all ${
-              limitSwitchPressed
-                ? 'bg-green-400 shadow-[0_0_8px_2px_rgba(74,222,128,0.6)]'
-                : 'bg-white/20'
-            }`}
-          />
-          <span className="text-white/50 text-xs">
-            {limitSwitchPressed ? 'Home' : 'Limit'}
-          </span>
+          {/* Buttons + status */}
+          <div className="flex items-center gap-3">
+            {/* Idle state: Start + Reset */}
+            {isIdle && (
+              <>
+                <button
+                  onClick={actions.start}
+                  className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg bg-green-500 hover:bg-green-600 text-white"
+                >
+                  Start
+                </button>
+                <button
+                  onClick={actions.reset}
+                  className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  Reset Guide
+                </button>
+              </>
+            )}
+
+            {/* Running state: Pause + Stop */}
+            {isRunning && (
+              <>
+                <button
+                  onClick={actions.pause}
+                  disabled={isPauseInProgress}
+                  className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  {isPauseInProgress ? 'Pausing...' : 'Pause'}
+                </button>
+                <button
+                  onClick={actions.stop}
+                  className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Stop
+                </button>
+              </>
+            )}
+
+            {/* Paused state: Resume + Stop + Reset */}
+            {isPaused && !showLimitWarning && (
+              <>
+                <button
+                  onClick={actions.resume}
+                  className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg bg-green-500 hover:bg-green-600 text-white"
+                >
+                  Resume
+                </button>
+                <button
+                  onClick={actions.stop}
+                  className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Stop
+                </button>
+                <button
+                  onClick={actions.reset}
+                  className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg bg-orange-500 hover:bg-orange-600 text-white"
+                >
+                  Reset Guide
+                </button>
+              </>
+            )}
+
+            {/* Resetting state: Stop Reset */}
+            {isResetting && (
+              <button
+                onClick={actions.stopReset}
+                className="px-6 py-2.5 rounded-lg font-semibold transition-all shadow-md hover:shadow-lg bg-yellow-500 hover:bg-yellow-600 text-white"
+              >
+                Stop Reset
+              </button>
+            )}
+
+            {/* Emulator: Limit Switch Toggle */}
+            {isEmulated && (
+              <button
+                onClick={triggerLimitSwitch}
+                className={`ml-1 px-3 py-2 rounded-lg text-xs font-medium transition-all border ${
+                  state.limitSwitch.pressed
+                    ? 'bg-green-500/20 border-green-500/50 text-green-300 hover:bg-green-500/30'
+                    : 'bg-white/5 border-white/20 text-white/50 hover:bg-white/10'
+                }`}
+                title="Simulate limit switch toggle"
+              >
+                {state.limitSwitch.pressed ? 'Release Limit' : 'Press Limit'}
+              </button>
+            )}
+
+            {/* Status text */}
+            <span className="text-white/50 text-sm ml-auto">
+              {isResetting
+                ? 'Homing guide...'
+                : isRunning
+                ? 'Winding...'
+                : isPaused
+                ? 'Paused'
+                : 'Ready'}
+            </span>
+          </div>
         </div>
+      )}
 
-        <span className="text-white/70 text-sm ml-auto">
-          {!connected
-            ? 'Connect to device first'
-            : isResetting
-            ? 'Moving guide to home...'
-            : isRunning
-            ? 'Winding in progress...'
-            : 'Ready to wind'}
-        </span>
-      </div>
-
-      {/* Speed Controls */}
+      {/* Motor Controls */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Spool Speed Control */}
         <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-xl">
-          <h3 className="text-xl font-semibold text-white mb-2">Spool Speed</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xl font-semibold text-white">Spool</h3>
+            {(isRunning || isPaused) && (
+              <span className="text-white/40 font-mono text-sm">
+                {formatSteps(spoolSteps)} steps
+              </span>
+            )}
+          </div>
           <p className="text-white/60 text-sm mb-4">Motor 0 - Main winding spool</p>
+
+          {/* Spool activity indicator */}
+          {(isRunning || isPaused) && (
+            <div className="mb-4">
+              <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full transition-all ${
+                  isRunning
+                    ? 'bg-blue-400/60 animate-pulse w-full'
+                    : 'bg-amber-400/40 w-full'
+                }`} />
+              </div>
+              <div className="flex justify-between mt-1">
+                <span className={`text-[10px] ${isRunning ? 'text-blue-300/50' : 'text-amber-300/40'}`}>
+                  REV {spoolSpeed}/s
+                </span>
+                <span className="text-white/20 text-[10px]">continuous</span>
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -320,10 +299,34 @@ export function MainInterface() {
 
         {/* Guide Control */}
         <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 shadow-xl">
-          <h3 className="text-xl font-semibold text-white mb-2">Guide Control</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-xl font-semibold text-white">Guide</h3>
+            {/* Limit switch indicator */}
+            <div className="flex items-center gap-1.5">
+              {state.limitSwitch.changedWhilePaused && isPaused ? (
+                <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]" />
+              ) : (
+                <div className={`w-2.5 h-2.5 rounded-full transition-all ${
+                  state.limitSwitch.pressed
+                    ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.6)]'
+                    : 'bg-white/15'
+                }`} />
+              )}
+              <span className="text-white/40 text-xs">
+                {state.limitSwitch.pressed ? 'Home' : 'Limit'}
+              </span>
+            </div>
+          </div>
           <p className="text-white/60 text-sm mb-4">Motor 1 - Fiber guide (oscillating)</p>
 
-          <div className="space-y-5">
+          {/* Guide shuttle visualization */}
+          <WindingStatus
+            state={state}
+            estimatedPosition={estimatedPosition}
+            guideTravel={guideTravel}
+          />
+
+          <div className="space-y-5 mt-4">
             {/* Guide Speed */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
