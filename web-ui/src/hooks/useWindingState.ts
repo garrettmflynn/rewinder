@@ -5,6 +5,7 @@ import { createWindingState, type WindingState, type SystemMode } from '../servi
 const RESET_SPEED = 400;
 const STATUS_TIMEOUT = 500;
 const POSITION_UPDATE_INTERVAL = 100;
+const HOME_OFFSET_STEPS = 375; // Steps to move away from limit switch before starting oscillation
 
 interface MotorStatusResponse {
   motor: number;
@@ -210,7 +211,18 @@ export function useWindingState(
     sendToMotor(0, `CONT ${spoolSpeedRef.current}`);
 
     startSpoolCounting();
-    startOscillationLoop('FWD', 0);
+
+    // Move away from limit switch before starting oscillation
+    const offsetSpeed = guideSpeedRef.current;
+    sendToMotor(1, `SPEED ${offsetSpeed}`);
+    sendToMotor(1, 'DIR FWD');
+    sendToMotor(1, `MOVE ${HOME_OFFSET_STEPS} ${offsetSpeed}`);
+
+    const offsetTime = (HOME_OFFSET_STEPS / offsetSpeed) * 1000 + 100;
+    oscillationTimer.current = setTimeout(() => {
+      if (stateRef.current.mode !== 'running') return;
+      startOscillationLoop('FWD', 0);
+    }, offsetTime);
   }, [updateMode, sendToMotor, startOscillationLoop, startSpoolCounting]);
 
   const pause = useCallback(async () => {
