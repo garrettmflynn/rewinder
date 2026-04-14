@@ -271,9 +271,9 @@ export function MainInterface() {
 
             <input
               type="range"
-              min="100"
+              min="25"
               max="2000"
-              step="50"
+              step="25"
               value={spoolSpeed}
               onChange={(e) => updateSpoolSpeed(Number(e.target.value))}
               disabled={!connected}
@@ -290,7 +290,7 @@ export function MainInterface() {
               value={spoolSpeed}
               onChange={(e) => updateSpoolSpeed(Number(e.target.value))}
               disabled={!connected}
-              min="100"
+              min="25"
               max="10000"
               className="w-full px-4 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-center font-mono disabled:opacity-50"
             />
@@ -336,9 +336,9 @@ export function MainInterface() {
 
               <input
                 type="range"
-                min="50"
+                min="10"
                 max="1000"
-                step="25"
+                step="10"
                 value={guideSpeed}
                 onChange={(e) => updateGuideSpeed(Number(e.target.value))}
                 disabled={!connected}
@@ -379,7 +379,7 @@ export function MainInterface() {
                   value={guideSpeed}
                   onChange={(e) => updateGuideSpeed(Number(e.target.value))}
                   disabled={!connected}
-                  min="50"
+                  min="10"
                   max="2000"
                   className="w-full px-3 py-2 bg-white/10 border border-white/20 rounded-lg text-white text-center font-mono text-sm disabled:opacity-50"
                 />
