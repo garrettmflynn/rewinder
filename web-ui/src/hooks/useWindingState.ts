@@ -309,7 +309,11 @@ export function useWindingState(
       startOscillationLoop(nextDir, oscillation.legCount);
     }
 
-    setState(prev => ({ ...prev, pauseTimestamp: null }));
+    setState(prev => ({
+      ...prev,
+      pauseTimestamp: null,
+      limitSwitch: { ...prev.limitSwitch, changedWhilePaused: false, pressedAtPause: prev.limitSwitch.pressed },
+    }));
     setShowLimitWarning(false);
   }, [updateMode, sendToMotor, startPositionEstimation, startOscillationLeg, startOscillationLoop, startSpoolCounting]);
 
@@ -358,6 +362,10 @@ export function useWindingState(
     }
 
     updateMode('resetting');
+    setState(prev => ({
+      ...prev,
+      limitSwitch: { ...prev.limitSwitch, changedWhilePaused: false, pressedAtPause: prev.limitSwitch.pressed },
+    }));
     sendToMotor(1, 'ENABLE 1');
     sendToMotor(1, 'DIR REV');
     sendToMotor(1, `CONT ${RESET_SPEED}`);
@@ -391,7 +399,7 @@ export function useWindingState(
             setState(prev => ({
               ...prev,
               mode: 'paused' as SystemMode,
-              limitSwitch: { ...prev.limitSwitch, pressed: true, changedWhilePaused: true },
+              limitSwitch: { ...prev.limitSwitch, pressed: true, pressedAtPause: true, changedWhilePaused: true },
               pauseTimestamp: Date.now(),
             }));
             setShowLimitWarning(true);
